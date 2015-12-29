@@ -8,47 +8,50 @@
 ##
 
 library(tm)
-library(SnowballC)
+library(slam)
 
-## If the sample data is not loaded; execute the following line of code
-#--! sample <- readLines("./Data/en_US.sample.txt", encoding ="UTF-8", skipNul = TRUE)
+## Data cleaning function which creates a data frame with cleaned corpus
+createDF <- function(InputSource, profanitylist) {
+      clean_text <- VCorpus(VectorSource(InputSource))
+      clean_text <- tm_map(clean_text, content_transformer(function(x) iconv(x, to="UTF-8", sub="byte")))
+      clean_text <- tm_map(clean_text, stripWhitespace)
+      clean_text <- tm_map(clean_text, content_transformer(tolower))
+      clean_text <- tm_map(clean_text, removeWords, stopwords("english"))
+      clean_text <- tm_map(clean_text, removeWords, profanity)
+      clean_text <- tm_map(clean_text, stemDocument)
+      clean_text <- tm_map(clean_text, content_transformer(removePunctuation))
+      clean_text <- tm_map(clean_text, content_transformer(removeNumbers))
+
+      tdm <- TermDocumentMatrix(clean_text)
+      freq <- sort(row_sums(tdm, na.rm=TRUE), decreasing=TRUE)
+      word <- names(freq)
+      data.frame(word=word, freq=freq)
+}
 
 ## Load profanity word list
 ## source: https://gist.github.com/jamiew/1112488
-profanity <- readLines("./Data/profanityfilter.txt")
+profanity <- readLines("../Data/profanityfilter.txt")
 
-## Build the corpus
-sample_clean <- Corpus(VectorSource(sample))
-#--! rm(sample)
-sample_clean <- tm_map(sample_clean, content_transformer(
-                                          function(x)
-                                              iconv(x, to = "UTF-8", sub="byte")        
-                                          ))
+# Process vectors into dataframe of word counts
+blogsDF <- createDF(blogs_sample, profanity)
+newsDF <- createDF(news_sample, profanity)
+twitterDF <- createDF(twitter_sample, profanity)
 
-## Convert all characters to lower case.
-sample_clean <- tm_map(sample_clean, content_transformer(tolower), lazy = TRUE)
+# Stack them all together
+blogsDF$dataset <- as.factor("blogs")
+newsDF$dataset <- as.factor("news")
+twitterDF$dataset <- as.factor("twitter")
+combinedDF <- rbind(blogsDF, newsDF, twitterDF)
 
-## Remove punctuation, numbers, URLs, whitespaces, stopwords and profanity words. 
-sample_clean <- tm_map(sample_clean, content_transformer(removePunctuation))
-sample_clean <- tm_map(sample_clean, content_transformer(removeNumbers))
-sample_clean <- tm_map(sample_clean, content_transformer(
-                                          function(x)
-                                                gsub("http[[:alnum:]]*", "", x)
-                                          ))
-sample_clean <- tm_map(sample_clean, stripWhitespace)
-sample_clean <- tm_map(sample_clean, removeWords, stopwords("english"))
-sample_clean <- tm_map(sample_clean, removeWords, profanity)
+saveRDS(blogsDF, file = "../Data/en_US.blogs.clean.RDS")
+saveRDS(newsDF, file = "../Data/en_US.news.clean.RDS")
+saveRDS(twitterDF, file = "../Data/en_US.twitter.clean.RDS")
+saveRDS(combinedDF, file = "../Data/en_US.combined.clean.RDS")
 
-## Bring the words back to their stem using Porter's stemming algorithm
-#--!sample_clean <- tm_map(sample_clean, stemDocument)
-#--!sample_clean <- tm_map(sample_clean, stripWhitespace)
+sampleDF <- rbind(blogsDF[1:30, ], newsDF[1:30, ], twitterDF[1:30, ])
+sampleDF_Aggregate <- aggregate(. ~ word, sampleDF[, 1:2], sum)
+sampleDF <- merge(sampleDF, sampleDF_Aggregate, by="word")
+names(sampleDF)[2] <- "freq"
+sampleDF$word <- reorder(sampleDF$word, sampleDF$freq.y)
 
-## Saving the final corpus
-saveRDS(sample_clean, file = "./Data/en_US.sample.clean.RDS")
-sample_clean <-data.frame(text=unlist(sapply(sample_clean,`[`, "content")), 
-                              stringsAsFactors = FALSE)
-
-## Clean-up
-rm(profanity)
-## If creating the clean corpus data file was the only goal, execute the following line as well
-#--! rm(sample_clean)
+saveRDS(sampleDF, file = "../Milestone_Report/sampleDF.RDS")

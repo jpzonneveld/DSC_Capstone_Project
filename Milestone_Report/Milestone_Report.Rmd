@@ -1,0 +1,195 @@
+---
+title: "Milestone Report Capstone Project"
+author: "Jeroen Zonneveld"
+date: "December 2015"
+output: html_document
+subtitle: Coursera Data Science Specialization
+---
+
+## Introduction
+Around the world, people are spending an increasing amount of time on their mobile devices for email, social networking, banking and a whole range of other activities. But typing on mobile devices can be a serious pain. SwiftKey, our corporate partner in this capstone, builds a smart keyboard that makes it easier for people to type on their mobile devices. One cornerstone of their smart keyboard is predictive text models. When someone types: *"I went to the"* the keyboard presents three options for what the next word might be. For example, the three words might be *"gym"*, *"store"*, *"restaurant"*. In this capstone we will work on understanding and building predictive text models like those used by SwiftKey.
+
+This intermediate report focusses on the basics: analyzing a large corpus of text documents to discover the structure in the data and how words are put together. It will cover cleaning and analyzing text data. In the second part of the project we will focus on building and sampling from a predictive text model. And finally, we will build a predictive text product.
+
+## Downloading the data
+For training a huge data set has been made available. This is based on the [HC Corpora](http://www.corpora.heliohost.org/) datasets. The dataset can be downloaded for free from [Coursera](http://d396qusza40orc.cloudfront.net/dsscapstone/dataset/Coursera-SwiftKey.zip).
+The dataset is put together from a larger number of different sources divided over 3 categories:
+
+* Blogs
+* News
+* Twitter
+
+The dataset available on the coursera website has four different languages. For this project we will only focus on the English datasets (the `en_US` folder).
+
+### Loading 
+```{r download, eval=FALSE, echo=FALSE}
+fileURL <- "http://d396qusza40orc.cloudfront.net/dsscapstone/dataset/Coursera-SwiftKey.zip"
+download.file(fileURL, destfile = "./Data/Dataset.zip")
+unlink(fileURL)
+unzip("../Data/Dataset.zip", exdir = "Data")
+```
+
+```{r data_load, eval=FALSE, echo=TRUE}
+blogs <- readLines("../Data/final/en_US/en_US.blogs.txt", encoding = "UTF-8", skipNul=TRUE)
+news <- readLines("../Data/final/en_US/en_US.news.txt", encoding = "UTF-8", skipNul=TRUE)
+twitter <- readLines("../Data/final/en_US/en_US.twitter.txt", encoding = "UTF-8", skipNul=TRUE)
+
+set.seed(1910)
+sampleTwitter <- twitter[sample(1:length(twitter),50000)]
+sampleNews <- news[sample(1:length(news),50000)]
+sampleBlogs <- blogs[sample(1:length(blogs),50000)]
+```
+Note that for computing time purposes we are only analysing a random set of 50000 lines from each file (seed 1910).
+
+## Data summary
+```{r data_summary, eval=FALSE, echo=FALSE}
+## Checking the size, number of lines and the word count for the files
+blogs_size <- file.info("../Data/final/en_US/en_US.blogs.txt")$size 
+news_size <- file.info("../Data/final/en_US/en_US.news.txt")$size
+twitter_size <- file.info("../Data/final/en_US/en_US.twitter.txt")$size
+
+## Create a data summary
+data_summary <- data.frame(
+      fileName = c("Blogs","News","Twitter"),
+      fileSize = c(round(blogs_size / (1024^2), digits = 2), 
+                   round(news_size / (1024^2), digits = 2), 
+                   round(twitter_size / (1024^2), digits = 2)),
+      lineCount = c(length(blogs),
+                    length(news),
+                    length(twitter)),
+      wordCount = c(sum(sapply(gregexpr("\\S+", blogs), length)),
+                    sum(sapply(gregexpr("\\S+", news), length)),
+                    sum(sapply(gregexpr("\\S+", twitter), length)))                  
+)
+colnames(data_summary) <- c("File Name", "File Size (in MB)", "Line Count", "Word Count")
+
+saveRDS(data_summary, file = "Data_Summary.RDS")
+
+```
+
+The following table summarizes the imported data.
+
+```{r data_summary_print, echo=FALSE}
+data_summary <- readRDS(file="Data_Summary.RDS")
+head(data_summary, 3)
+```
+
+## Data exploration
+To get a feel for the data we are working with, let's have a closer look at the most common words in the datasets. We will remove common *stopwords* like "the", "and", etc. to ensure these words do not dominate our view of the dataset. Also we will remove any swearwords that may be in the dataset.
+
+```{r data_processing, echo=FALSE, eval=FALSE}
+library(tm)
+library(slam)
+
+## Data cleaning function which creates a data frame with cleaned corpus
+createDF <- function(InputSource, profanitylist) {
+      clean_text <- VCorpus(VectorSource(InputSource))
+      clean_text <- tm_map(clean_text, content_transformer(function(x) iconv(x, to="UTF-8", sub="byte")))
+      clean_text <- tm_map(clean_text, stripWhitespace)
+      clean_text <- tm_map(clean_text, content_transformer(tolower))
+      clean_text <- tm_map(clean_text, removeWords, stopwords("english"))
+      clean_text <- tm_map(clean_text, removeWords, profanity)
+      clean_text <- tm_map(clean_text, stemDocument)
+      clean_text <- tm_map(clean_text, content_transformer(removePunctuation))
+      clean_text <- tm_map(clean_text, content_transformer(removeNumbers))
+
+      tdm <- TermDocumentMatrix(clean_text)
+      freq <- sort(row_sums(tdm, na.rm=TRUE), decreasing=TRUE)
+      word <- names(freq)
+      data.frame(word=word, freq=freq)
+}
+
+## Load profanity word list
+## source: https://gist.github.com/jamiew/1112488
+profanity <- readLines("../Data/profanityfilter.txt")
+
+# Process vectors into dataframe of word counts
+blogsDF <- createDF(blogs_sample, profanity)
+newsDF <- createDF(news_sample, profanity)
+twitterDF <- createDF(twitter_sample, profanity)
+
+# Pre-process to create top used words plot.
+blogsDF$dataset <- as.factor("blogs")
+newsDF$dataset <- as.factor("news")
+twitterDF$dataset <- as.factor("twitter")
+
+saveRDS(blogsDF, file = "../Data/en_US.blogs.clean.RDS")
+saveRDS(newsDF, file = "../Data/en_US.news.clean.RDS")
+saveRDS(twitterDF, file = "../Data/en_US.twitter.clean.RDS")
+
+sampleDF <- rbind(blogsDF[1:30, ], newsDF[1:30, ], twitterDF[1:30, ])
+sampleDF_Aggregate <- aggregate(. ~ word, sampleDF[, 1:2], sum)
+sampleDF <- merge(sampleDF, sampleDF_Aggregate, by="word")
+names(sampleDF)[2] <- "freq"
+sampleDF$word <- reorder(sampleDF$word, sampleDF$freq.y)
+
+saveRDS(sampleDF, file = "../Milestone_Report/sampleDF.RDS")
+```
+
+```{r top30_words, echo=FALSE}
+library(ggplot2)
+sampleDF <- readRDS(file="../Milestone_Report/sampleDF.RDS")
+ggplot(sampleDF, aes(word, freq, fill=dataset)) + 
+  geom_bar(stat="identity") + 
+  xlab("Word Frequency") +
+  ylab("Words") +
+  ggtitle("Top 30 Words From Each Dataset") +
+  coord_flip()
+```
+
+We can draw the following conclusions from the above picture:
+
+1. The frequency of words drops off quickly. For example, the top 10 words across datasets are far more common than the next 10 (almost double the frequency).
+
+2. In the datasets there is still room for improved data cleaning since some of the most common elements are not words but appear as 'translation' errors.
+
+3. There are many ambiguous words in the top 30. For example *like* can be used in multiple ways (*I like you* versus *It's like that*). We will therefor need to look at more complex language models than simply the word frequency to get to a good prediction. For the model we will look at word pairs, triples and potentially quads to predict the next word in the row. Full sentences will probably be too costly.
+
+To get another view of this data, let's take a look at the word clouds for each dataset. The size of the word corresponds on the frequency at which this word appears in the dataset. It is cool to see that the themes the different media use the most are reflected in the wordclouds. For instance for *news* we see the most used word is "said" while on *twitter* we see trending words such as "love" and "thank".
+
+### Blogs
+```{r wordcloud_blogs, cache=TRUE, echo=FALSE, warning=FALSE}
+library(wordcloud)
+
+blogsDF <- readRDS(file="../Data/en_US.blogs.clean.RDS")
+
+wordcloud(words=blogsDF$word, 
+          freq=blogsDF$freq,
+          random.order=FALSE,
+          min.freq=100,
+          colors=brewer.pal(8, "Dark2"))
+```
+
+### News
+```{r wordcloud_news, cache=TRUE, echo=FALSE, warning=FALSE}
+
+newsDF <- readRDS(file="../Data/en_US.news.clean.RDS")
+
+wordcloud(words=newsDF$word, 
+          freq=newsDF$freq,
+          random.order=FALSE,
+          min.freq=100,
+          colors=brewer.pal(8, "Dark2"))
+```
+
+### Twitter
+```{r wordcloud_twitter, warning=FALSE, cache=TRUE, echo=FALSE}
+
+twitterDF <- readRDS(file="../Data/en_US.twitter.clean.RDS")
+
+wordcloud(words=twitterDF$word, 
+          freq=twitterDF$freq,
+          random.order=FALSE,
+          min.freq=100,
+          colors=brewer.pal(8, "Dark2"))
+```
+
+## Acknowledgements
+This repository is created for the capstone project of the Coursera Data Science specialization of the Johns Hopkins University. 
+
+* The code of this application, as well as all the code, scripts and reports can be found on [Github](https://github.com/jpzonneveld/DSC_Capstone_Project)
+
+* Learn more about Data Science Specialization on [Coursera](https://www.coursera.org/specialization/jhudatascience/1)
+
+* The profanity list was obtained from [Github](https://gist.github.com/jamiew/1112488)
+
