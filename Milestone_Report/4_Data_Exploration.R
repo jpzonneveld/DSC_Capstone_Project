@@ -10,7 +10,12 @@
 library(ggplot2)
 library(wordcloud)
 
-sampleDF <- readRDS(file="../Milestone_Report/sampleDF.RDS")
+sampleDF <- rbind(blogs_word[1:30, ], news_word[1:30, ], twitter_word[1:30, ])
+sampleDF_Aggregate <- aggregate(. ~ word, sampleDF[, 1:2], sum)
+sampleDF <- merge(sampleDF, sampleDF_Aggregate, by="word")
+names(sampleDF)[2] <- "freq"
+sampleDF$word <- reorder(sampleDF$word, sampleDF$freq.y)
+
 ggplot(sampleDF, aes(word, freq, fill=dataset)) + 
       geom_bar(stat="identity") + 
       xlab("Word Frequency") +

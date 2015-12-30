@@ -21,9 +21,9 @@ twitter <- readLines("../Data/final/en_US/en_US.twitter.txt", encoding ="UTF-8",
 
 ## Sampling the data
 set.seed(1910)
-blogs_sample <- blogs[sample(1:length(blogs), 50000)]
-news_sample <- news[sample(1:length(news), 50000)]
-twitter_sample <- twitter[sample(1:length(twitter), 50000)]
+blogs_sample <- blogs[sample(1:length(blogs), 10000)]
+news_sample <- news[sample(1:length(news), 10000)]
+twitter_sample <- twitter[sample(1:length(twitter), 10000)]
 sample <- c(blogs_sample, news_sample, twitter_sample)
 
 ## Save sample & clean up
