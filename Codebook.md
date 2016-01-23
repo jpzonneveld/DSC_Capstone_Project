@@ -28,6 +28,22 @@ In order to create the report with the required RDS files execute the following 
 
 
 ### Shiny app
+In order to create the cleaned up data sets for the shiny app, execute the following scripts in the Data_Prep folder in order:
+* 0_Install_Packages.R
+* 1_Download_Data.R
+* 2_Data_Cleaning.R - Creates the Sample_x_gram.RDS files.
 
-* Placeholder 1
-* Placeholder 2
+**Note** that some of the variables may not cary over from one script to the next. Read the comments and scripts before executing them. 
+
+The shiny app requires the following files to present in the Shiny_App folder to work properly:
+* predictor.R
+* server.R
+* ui.R
+* ./Data/Data_2_gram.RDS
+* ./Data/Data_3_gram.RDS
+* ./Data/Data_4_gram.RDS
+* ./Data/Data_5_gram.RDS
+* ./About/about.md
+
+Please note the files created in the Data_prep fase (Sample_x_gram.RDS) can be used as input files for the Shiny app and placed in the Data folder. (Note the renaming to Data_x_gram.RDS)
+

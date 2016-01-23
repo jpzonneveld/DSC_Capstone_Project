@@ -23,7 +23,7 @@ CleanCorpus <- function(InputSource, profanitylist) {
             iconv(x, to="UTF-8", sub = "byte")))
       clean_text <- tm_map(clean_text, stripWhitespace)
       clean_text <- tm_map(clean_text, content_transformer(tolower))
-      clean_text <- tm_map(clean_text, removeWords, stopwords("english"))
+#      clean_text <- tm_map(clean_text, removeWords, stopwords("english"))
       clean_text <- tm_map(clean_text, removeWords, profanity)
       clean_text <- tm_map(clean_text, content_transformer(removePunctuation))
       clean_text <- tm_map(clean_text, content_transformer(removeNumbers))
@@ -62,9 +62,13 @@ blogsDF <- CorpustoDF(blogs_corpus)
 newsDF <- CorpustoDF(news_corpus)
 twitterDF <- CorpustoDF(twitter_corpus)
 
-saveRDS(blogsDF, file = "../Data/en_US.blogs.clean.RDS")
-saveRDS(newsDF, file = "../Data/en_US.news.clean.RDS")
-saveRDS(twitterDF, file = "../Data/en_US.twitter.clean.RDS")
+saveRDS(blogsDF, file = "../Data/blogs_sample.clean.RDS")
+saveRDS(newsDF, file = "../Data/news_sample.clean.RDS")
+saveRDS(twitterDF, file = "../Data/twitter_sample.clean.RDS")
+
+# write.table(newsDF, file = "../Data/en_US.news.clean.txt", row.names = FALSE, 
+#                                   col.names = FALSE, quote=FALSE)
+
 
 # Count number of appearances per word, store in a DF.
 blogs_word <- WordFrequencyDF(blogs_corpus)
